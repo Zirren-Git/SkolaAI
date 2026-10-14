@@ -4,16 +4,38 @@ on:
   push:
     branches: [arena/93317268-skolaai]
   workflow_dispatch:
+    inputs:
+      inspect_run:
+        description: "Optional failed run ID to inspect instead of building"
+        type: string
+        default: ""
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
-  group: windows-portable-${{ github.ref }}
+  group: windows-portable-${{ github.ref }}-${{ inputs.inspect_run || 'build' }}
   cancel-in-progress: true
 
 jobs:
+  diagnostics:
+    if: ${{ inputs.inspect_run != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Surface failed build log as annotations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.inspect_run }}
+        shell: bash
+        run: |
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > failed.log
+          while IFS= read -r line; do
+            line="${line//'%'/'%25'}"
+            echo "::notice title=Previous run log::$line"
+          done < failed.log
   windows:
+    if: ${{ inputs.inspect_run == '' }}
     runs-on: windows-latest
     timeout-minutes: 25
     env:

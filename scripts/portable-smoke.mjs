@@ -4,6 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import { chromium, expect } from "@playwright/test";
 
+const reportError = (error) => {
+  console.error(
+    `::error title=Portable test failure::${String(error.stack || error)
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A")}`,
+  );
+  process.exitCode = 1;
+};
+process.on("uncaughtException", reportError);
+process.on("unhandledRejection", reportError);
+
 // Test the release asset itself, copied alone to an otherwise empty folder.
 // No installed Node.js, Vite server or adjacent application files are used by it.
 const { version } = JSON.parse(await fs.readFile("package.json", "utf8"));
@@ -69,7 +81,15 @@ try {
   throw error;
 } finally {
   if (browser) await browser.close().catch(() => {});
-  if (child.exitCode === null) child.kill();
+  if (child.exitCode === null) {
+    try {
+      child.kill();
+    } catch (error) {
+      // On Windows the portable launcher may already be exiting when the
+      // Browser.close response arrives, before Node receives its exit event.
+      console.warn(`Portable launcher cleanup: ${error.message}`);
+    }
+  }
   // The portable wrapper can take a moment to remove its extracted payload.
   await fs
     .rm(temp, {
