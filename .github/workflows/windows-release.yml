@@ -20,7 +20,6 @@ concurrency:
 
 jobs:
   diagnostics:
-    if: ${{ inputs.inspect_run != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Surface failed build log as annotations
@@ -29,6 +28,10 @@ jobs:
           RUN_ID: ${{ inputs.inspect_run }}
         shell: bash
         run: |
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow windows-release.yml --status failure --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          fi
+          if [ -z "$RUN_ID" ]; then exit 0; fi
           gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > failed.log
           while IFS= read -r line; do
             line="${line//'%'/'%25'}"
