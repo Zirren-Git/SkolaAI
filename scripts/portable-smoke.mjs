@@ -65,9 +65,29 @@ try {
     fullPage: true,
   });
   const session = await browser.newBrowserCDPSession();
-  await session.send("Browser.close").catch((error) => {
-    if (!/closed/i.test(error.message)) throw error;
+  // Electron can terminate its CDP connection without ever answering Browser.close.
+  // Await the launcher process instead; awaiting that CDP reply can leave an
+  // unsettled top-level await even though every application assertion passed.
+  const exited = new Promise((resolve) => {
+    if (child.exitCode !== null) resolve();
+    else child.once("exit", resolve);
   });
+  void session.send("Browser.close").catch(() => {});
+  let closeTimer;
+  try {
+    await Promise.race([
+      exited,
+      new Promise((_, reject) => {
+        closeTimer = setTimeout(
+          () =>
+            reject(new Error("Portable app did not exit within 30 seconds")),
+          30_000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(closeTimer);
+  }
   console.log(
     "Portable EXE passed: launched alone from an empty directory and calculated using its bundled worker.",
   );
@@ -80,7 +100,19 @@ try {
   );
   throw error;
 } finally {
-  if (browser) await browser.close().catch(() => {});
+  if (browser) {
+    let disconnectTimer;
+    try {
+      await Promise.race([
+        browser.close().catch(() => {}),
+        new Promise((resolve) => {
+          disconnectTimer = setTimeout(resolve, 3000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(disconnectTimer);
+    }
+  }
   if (child.exitCode === null) {
     try {
       child.kill();
