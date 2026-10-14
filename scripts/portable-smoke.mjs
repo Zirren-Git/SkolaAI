@@ -36,7 +36,10 @@ try {
     )
     .toBe(true);
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-  const page = browser.contexts()[0].pages()[0];
+  const context = browser.contexts()[0];
+  const page =
+    context.pages()[0] ??
+    (await context.waitForEvent("page", { timeout: 30_000 }));
   await expect(
     page.getByRole("button", { name: "Beräkna kombinationer" }),
   ).toBeEnabled({ timeout: 30_000 });
@@ -50,18 +53,32 @@ try {
     fullPage: true,
   });
   const session = await browser.newBrowserCDPSession();
-  await session.send("Browser.close");
+  await session.send("Browser.close").catch((error) => {
+    if (!/closed/i.test(error.message)) throw error;
+  });
   console.log(
     "Portable EXE passed: launched alone from an empty directory and calculated using its bundled worker.",
   );
+} catch (error) {
+  console.error(
+    `::error title=Portable EXE test::${String(error.stack || error)
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A")}`,
+  );
+  throw error;
 } finally {
   if (browser) await browser.close().catch(() => {});
   if (child.exitCode === null) child.kill();
   // The portable wrapper can take a moment to remove its extracted payload.
-  await fs.rm(temp, {
-    recursive: true,
-    force: true,
-    maxRetries: 8,
-    retryDelay: 500,
-  });
+  await fs
+    .rm(temp, {
+      recursive: true,
+      force: true,
+      maxRetries: 8,
+      retryDelay: 500,
+    })
+    .catch((error) =>
+      console.warn(`Temporary test folder cleanup: ${error.message}`),
+    );
 }
