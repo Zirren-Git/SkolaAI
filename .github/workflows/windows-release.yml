@@ -1,0 +1,62 @@
+name: Build Windows portable
+
+on:
+  push:
+    branches: [arena/93317268-skolaai]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test calculation engine
+        run: npm test
+      - name: Build one portable Windows executable
+        run: npm run package:win
+      - name: Test packaged desktop application
+        run: npm run test:desktop
+        env:
+          PARVIS_EXECUTABLE_PATH: build/desktop/win-unpacked/Parvis.exe
+      - name: Test standalone portable executable from an empty folder
+        run: node scripts/portable-smoke.mjs
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build/desktop/Parvis-*-win-x64.exe
+          if (@($exe).Count -ne 1) { throw 'Expected exactly one portable executable' }
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($exe.Name)" | Set-Content build/desktop/SHA256SUMS.txt -Encoding utf8
+      - name: Upload release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parvis-Windows-x64
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            build/desktop/Parvis-*-win-x64.exe
+            build/desktop/SHA256SUMS.txt
+      - name: Upload desktop test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+          path: test-results/

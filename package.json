@@ -1,0 +1,78 @@
+{
+  "name": "parvis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "preview": "vite preview --host 0.0.0.0",
+    "test:e2e": "playwright test",
+    "desktop": "npm run build && electron .",
+    "test:desktop": "node scripts/desktop-smoke.mjs",
+    "package:win": "npm run build && electron-builder --win portable --x64 --publish never"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3",
+    "tailwindcss": "^4.1.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.0",
+    "vitest": "^4.1.11"
+  },
+  "description": "Parvis – kombinatorisk kalkylator med fasta talpar",
+  "author": "Zirren-Git",
+  "main": "desktop/main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "build": {
+    "appId": "se.skolaai.parvis",
+    "productName": "Parvis",
+    "directories": {
+      "output": "build/desktop",
+      "buildResources": "desktop/assets"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/main.cjs",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop/THIRD-PARTY-NOTICES.txt",
+        "to": "THIRD-PARTY-NOTICES.txt"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/assets/parvis.ico",
+      "artifactName": "Parvis-${version}-win-${arch}.${ext}",
+      "signAndEditExecutable": true
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    },
+    "npmRebuild": false
+  }
+}
